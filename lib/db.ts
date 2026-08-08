@@ -59,106 +59,8 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-// Seed Initial Sample Media Data if Database is Fresh
-const INITIAL_SEED_ITEMS: Omit<MediaItem, 'previewUrl'>[] = [
-  {
-    id: 'seed-1',
-    title: 'Thác Nước Thiên Nhiên 4K (Nature Waterfall)',
-    description: 'Âm thanh tự nhiên thư giãn với thác nước chảy rừng nguyên sinh.',
-    type: 'video',
-    sourceUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=1200&q=80',
-    duration: 15,
-    tags: ['#nature', '#relax', '#4k', '#waterfall'],
-    favorite: true,
-    createdAt: Date.now() - 50000,
-    updatedAt: Date.now() - 50000,
-    order: 1,
-    collectionId: 'relax',
-    playCount: 12
-  },
-  {
-    id: 'seed-2',
-    title: 'Giai Điệu Lofi Chill Ban Đêm (Night Rain Lofi)',
-    description: 'Âm nhạc Lofi kết hợp tiếng mưa rơi giúp tập trung học tập và ngủ ngon.',
-    type: 'audio',
-    sourceUrl: 'https://actions.google.com/sounds/v1/weather/rain_heavy.ogg',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
-    duration: 180,
-    tags: ['#lofi', '#study', '#chill', '#music'],
-    favorite: true,
-    createdAt: Date.now() - 40000,
-    updatedAt: Date.now() - 40000,
-    order: 2,
-    collectionId: 'study',
-    playCount: 45
-  },
-  {
-    id: 'seed-3',
-    title: 'Hoàng Hôn Biển & Nhạc Cổ Điển (Sunset & Waves)',
-    description: 'Ảnh chụp khung cảnh hoàng hôn rực rỡ ghép cùng bản nhạc piano nhẹ nhàng.',
-    type: 'image_audio',
-    sourceUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
-    audioUrl: 'https://actions.google.com/sounds/v1/music/piano_moment.ogg',
-    duration: 240,
-    tags: ['#sunset', '#piano', '#ambient', '#relax'],
-    favorite: false,
-    createdAt: Date.now() - 30000,
-    updatedAt: Date.now() - 30000,
-    order: 3,
-    collectionId: 'relax',
-    playCount: 8
-  },
-  {
-    id: 'seed-4',
-    title: 'Động Vật Hoang Dã Thú Vị (Wildlife Highlights)',
-    description: 'Thước phim thiên nhiên hoang dã tuyệt đẹp chất lượng cao.',
-    type: 'video',
-    sourceUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?auto=format&fit=crop&w=1200&q=80',
-    duration: 15,
-    tags: ['#wildlife', '#animals', '#documentary'],
-    favorite: false,
-    createdAt: Date.now() - 20000,
-    updatedAt: Date.now() - 20000,
-    order: 4,
-    collectionId: 'nature',
-    playCount: 19
-  },
-  {
-    id: 'seed-5',
-    title: 'Lofi Girl - Relaxing Beats to Study/Relax to',
-    description: 'Video phát trực tuyến âm nhạc Lofi nổi tiếng trên YouTube.',
-    type: 'external_video',
-    sourceUrl: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
-    duration: 0,
-    tags: ['#youtube', '#lofigirl', '#study', '#live'],
-    favorite: true,
-    createdAt: Date.now() - 10000,
-    updatedAt: Date.now() - 10000,
-    order: 5,
-    collectionId: 'study',
-    playCount: 88
-  },
-  {
-    id: 'seed-6',
-    title: 'Khám Phá Vũ Trụ & Tinh Vân (Cosmic Nebula)',
-    description: 'Bức ảnh chụp dải ngân hà tuyệt đẹp với độ phân giải siêu nét.',
-    type: 'image',
-    sourceUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80',
-    duration: 10,
-    tags: ['#space', '#nebula', '#wallpaper', '#art'],
-    favorite: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    order: 6,
-    collectionId: 'art',
-    playCount: 5
-  }
-];
+// Seed Initial Sample Media Data if Database is Fresh (Left empty so user starts clean)
+const INITIAL_SEED_ITEMS: Omit<MediaItem, 'previewUrl'>[] = [];
 
 const INITIAL_COLLECTIONS: Collection[] = [
   { id: 'relax', name: 'Thư Giãn & Thiên Nhiên', icon: 'Sparkles', color: 'bg-emerald-500/20 text-emerald-400' },
@@ -171,15 +73,24 @@ const INITIAL_COLLECTIONS: Collection[] = [
 export async function getAllMedia(): Promise<MediaItem[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_MEDIA, 'readonly');
+    const tx = db.transaction(STORE_MEDIA, 'readwrite');
     const store = tx.objectStore(STORE_MEDIA);
     const request = store.getAll();
 
     request.onsuccess = async () => {
       let items: MediaItem[] = request.result || [];
 
-      // Seed if empty
-      if (items.length === 0) {
+      // Clean up any legacy seed items from local IndexedDB
+      const seedIds = items.filter((item) => item.id.startsWith('seed-')).map((i) => i.id);
+      if (seedIds.length > 0) {
+        for (const seedId of seedIds) {
+          store.delete(seedId);
+        }
+        items = items.filter((item) => !item.id.startsWith('seed-'));
+      }
+
+      // Seed if empty and INITIAL_SEED_ITEMS has items
+      if (items.length === 0 && INITIAL_SEED_ITEMS.length > 0) {
         await seedDefaultData(db);
         const seedTx = db.transaction(STORE_MEDIA, 'readonly');
         const seedReq = seedTx.objectStore(STORE_MEDIA).getAll();
@@ -199,23 +110,6 @@ export async function getAllMedia(): Promise<MediaItem[]> {
 function processMediaItems(items: MediaItem[]): MediaItem[] {
   return items.map((item) => {
     const processed = { ...item };
-
-    // Sanitize legacy soundhelix URLs that fail CORS
-    if (processed.sourceUrl && processed.sourceUrl.includes('soundhelix.com')) {
-      processed.sourceUrl = 'https://actions.google.com/sounds/v1/weather/rain_heavy.ogg';
-    }
-    if (processed.audioUrl && processed.audioUrl.includes('soundhelix.com')) {
-      processed.audioUrl = 'https://actions.google.com/sounds/v1/music/piano_moment.ogg';
-    }
-
-    // Sanitize legacy video URLs that fail CORS
-    if (processed.type === 'video' && processed.sourceUrl && (processed.sourceUrl.includes('commondatastorage.googleapis.com') || processed.sourceUrl.includes('gtv-videos-bucket'))) {
-      if (processed.id === 'seed-4') {
-        processed.sourceUrl = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
-      } else {
-        processed.sourceUrl = 'https://vjs.zencdn.net/v/oceans.mp4';
-      }
-    }
 
     // Process Blob for primary file if present
     if (processed.fileBlob) {
