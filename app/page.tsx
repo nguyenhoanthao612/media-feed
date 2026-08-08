@@ -11,6 +11,7 @@ import { Sidebar } from '@/components/navigation/Sidebar';
 import { BottomNav } from '@/components/navigation/BottomNav';
 import { MediaFeed } from '@/components/feed/MediaFeed';
 import { LibraryView } from '@/components/library/LibraryView';
+import { PlaylistsView } from '@/components/playlists/PlaylistsView';
 import { AddMediaModal } from '@/components/add-media/AddMediaModal';
 import { QueueDrawer } from '@/components/queue/QueueDrawer';
 import { EditMediaModal } from '@/components/edit-media/EditMediaModal';
@@ -27,7 +28,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Tab & View States
-  const [currentTab, setCurrentTab] = useState<'feed' | 'library' | 'favorites' | 'settings'>('feed');
+  const [currentTab, setCurrentTab] = useState<'feed' | 'library' | 'playlists' | 'favorites' | 'settings'>('feed');
   const [continuousPlay, setContinuousPlay] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
@@ -230,7 +231,23 @@ export default function HomePage() {
               />
             )}
 
-            {/* 3. FAVORITES VIEW */}
+            {/* 3. PLAYLISTS VIEW */}
+            {currentTab === 'playlists' && (
+              <PlaylistsView
+                items={items}
+                onPlayPlaylist={(plItems, startMediaId) => {
+                  if (startMediaId) {
+                    setActiveItemId(startMediaId);
+                  } else if (plItems.length > 0) {
+                    setActiveItemId(plItems[0].id);
+                  }
+                  setCurrentTab('feed');
+                }}
+                onOpenAddMediaModal={() => setIsAddModalOpen(true)}
+              />
+            )}
+
+            {/* 4. FAVORITES VIEW */}
             {currentTab === 'favorites' && (
               <LibraryView
                 items={favoriteItems}

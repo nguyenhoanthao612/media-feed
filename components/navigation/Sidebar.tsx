@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Home, Library, Heart, Plus, ListMusic, Sparkles, Settings } from 'lucide-react';
+import { Home, Library, Heart, Plus, ListMusic, Sparkles, Settings, ListVideo } from 'lucide-react';
 
 interface SidebarProps {
-  currentTab: 'feed' | 'library' | 'favorites' | 'settings';
-  onSelectTab: (tab: 'feed' | 'library' | 'favorites' | 'settings') => void;
+  currentTab: 'feed' | 'library' | 'playlists' | 'favorites' | 'settings';
+  onSelectTab: (tab: 'feed' | 'library' | 'playlists' | 'favorites' | 'settings') => void;
   onOpenAddModal: () => void;
   onOpenQueue: () => void;
   favoriteCount: number;
@@ -65,6 +65,18 @@ export function Sidebar({
           >
             <Library className="w-4 h-4 text-blue-400" />
             <span>Thư viện (Library)</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('playlists')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+              currentTab === 'playlists'
+                ? 'bg-zinc-800/80 text-white shadow-sm border border-zinc-700/60'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+            }`}
+          >
+            <ListVideo className="w-4 h-4 text-violet-400" />
+            <span>Danh sách phát (Playlists)</span>
           </button>
 
           <button

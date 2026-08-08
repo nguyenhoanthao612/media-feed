@@ -34,6 +34,18 @@ export interface Collection {
   color?: string;
 }
 
+export interface Playlist {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  icon?: string;
+  color?: string;
+  itemIds: string[];
+  isCustom?: boolean;
+  createdAt: number;
+}
+
 export interface PlaybackState {
   lastMediaId: string | null;
   lastPosition: number;
