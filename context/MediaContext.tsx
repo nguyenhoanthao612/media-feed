@@ -6,6 +6,12 @@ import {
   getAllMedia, saveMediaItem, deleteMediaItem, 
   toggleFavorite, getAllCollections, reorderMediaItems 
 } from '@/lib/db';
+import {
+  getStoredSheetsWebAppUrl,
+  getStoredAutoSync,
+  fetchItemsFromSheets,
+  pushAllItemsToSheets,
+} from '@/lib/google-sheets';
 
 const LOCAL_STORAGE_LAST_STATE = 'my_media_feed_last_position';
 const LOCAL_STORAGE_CONTINUOUS = 'my_media_feed_continuous_play';
@@ -21,6 +27,11 @@ interface MediaContextType {
   isMuted: boolean;
   setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
   favoriteItems: MediaItem[];
+
+  // Google Sheets Sync
+  isSheetsSyncing: boolean;
+  lastSheetsSyncTime: string | null;
+  handleManualSheetsSync: () => Promise<boolean>;
 
   // Modals & Drawers
   isAddModalOpen: boolean;
@@ -60,6 +71,10 @@ export function MediaProvider({ children }: { children: ReactNode }) {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
+  // Sheets Sync State
+  const [isSheetsSyncing, setIsSheetsSyncing] = useState(false);
+  const [lastSheetsSyncTime, setLastSheetsSyncTime] = useState<string | null>(null);
+
   // Modals & Drawers
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
@@ -75,12 +90,39 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     async function init() {
       try {
-        const [mediaList, colList] = await Promise.all([
+        let [mediaList, colList] = await Promise.all([
           getAllMedia(),
           getAllCollections(),
         ]);
 
         if (!isMounted) return;
+
+        // Try syncing from Google Sheets if configured
+        const webAppUrl = getStoredSheetsWebAppUrl();
+        if (webAppUrl) {
+          try {
+            setIsSheetsSyncing(true);
+            const remoteItems = await fetchItemsFromSheets(webAppUrl);
+            if (remoteItems.length > 0) {
+              // Merge remote items with local items
+              const itemMap = new Map<string, MediaItem>();
+              mediaList.forEach((it) => itemMap.set(it.id, it));
+              remoteItems.forEach((it) => itemMap.set(it.id, it));
+              
+              const mergedList = Array.from(itemMap.values());
+              // Save remote items to local IndexedDB
+              for (const rItem of remoteItems) {
+                await saveMediaItem(rItem);
+              }
+              mediaList = mergedList;
+              setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
+            }
+          } catch (e) {
+            console.warn('Initial Google Sheets sync skipped or failed:', e);
+          } finally {
+            if (isMounted) setIsSheetsSyncing(false);
+          }
+        }
 
         setItems(mediaList);
         setCollections(colList);
@@ -128,17 +170,68 @@ export function MediaProvider({ children }: { children: ReactNode }) {
 
   const favoriteItems = useMemo(() => items.filter((i) => i.favorite), [items]);
 
+  // Helper to trigger background sync to Google Sheets
+  const triggerAutoSheetsSync = async (currentItems: MediaItem[]) => {
+    const webAppUrl = getStoredSheetsWebAppUrl();
+    const autoSync = getStoredAutoSync();
+    if (webAppUrl && autoSync) {
+      try {
+        setIsSheetsSyncing(true);
+        await pushAllItemsToSheets(webAppUrl, currentItems);
+        setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
+      } catch (err) {
+        console.error('Background Google Sheets sync error:', err);
+      } finally {
+        setIsSheetsSyncing(false);
+      }
+    }
+  };
+
+  // Manual Sheets Sync Button action
+  const handleManualSheetsSync = async (): Promise<boolean> => {
+    const webAppUrl = getStoredSheetsWebAppUrl();
+    if (!webAppUrl) return false;
+    try {
+      setIsSheetsSyncing(true);
+      // First fetch remote
+      const remoteItems = await fetchItemsFromSheets(webAppUrl);
+      const itemMap = new Map<string, MediaItem>();
+      items.forEach((it) => itemMap.set(it.id, it));
+      remoteItems.forEach((it) => itemMap.set(it.id, it));
+
+      const mergedList = Array.from(itemMap.values());
+      setItems(mergedList);
+      for (const item of mergedList) {
+        await saveMediaItem(item);
+      }
+
+      // Then push combined list back to Sheets
+      await pushAllItemsToSheets(webAppUrl, mergedList);
+      setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
+      return true;
+    } catch (err) {
+      console.error('Manual Google Sheets sync failed:', err);
+      return false;
+    } finally {
+      setIsSheetsSyncing(false);
+    }
+  };
+
   // Handle Save New Media
   const handleSaveMedia = async (newItem: MediaItem) => {
     const saved = await saveMediaItem(newItem);
-    setItems((prev) => [saved, ...prev]);
+    const updatedList = [saved, ...items];
+    setItems(updatedList);
     setActiveItemId(saved.id);
+    triggerAutoSheetsSync(updatedList);
   };
 
   // Handle Edit Media Item
   const handleUpdateItem = async (updatedItem: MediaItem) => {
     const saved = await saveMediaItem(updatedItem);
-    setItems((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
+    const updatedList = items.map((i) => (i.id === saved.id ? saved : i));
+    setItems(updatedList);
+    triggerAutoSheetsSync(updatedList);
   };
 
   // Handle Delete Media Item Request
@@ -154,20 +247,21 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     if (!itemToDelete) return;
     const id = itemToDelete.id;
     await deleteMediaItem(id);
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    const updatedList = items.filter((i) => i.id !== id);
+    setItems(updatedList);
     if (activeItemId === id) {
-      const remaining = items.filter((i) => i.id !== id);
-      setActiveItemId(remaining[0]?.id || null);
+      setActiveItemId(updatedList[0]?.id || null);
     }
     setItemToDelete(null);
+    triggerAutoSheetsSync(updatedList);
   };
 
   // Handle Favorite Toggle
   const handleFavoriteToggle = async (id: string) => {
     const newFav = await toggleFavorite(id);
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, favorite: newFav } : i))
-    );
+    const updatedList = items.map((i) => (i.id === id ? { ...i, favorite: newFav } : i));
+    setItems(updatedList);
+    triggerAutoSheetsSync(updatedList);
   };
 
   // Handle Continuous Play Toggle
@@ -181,6 +275,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
   const handleReorderItems = async (newItems: MediaItem[]) => {
     setItems(newItems);
     await reorderMediaItems(newItems.map((i) => i.id));
+    triggerAutoSheetsSync(newItems);
   };
 
   // Handle Resume Play action
@@ -204,6 +299,10 @@ export function MediaProvider({ children }: { children: ReactNode }) {
         isMuted,
         setIsMuted,
         favoriteItems,
+
+        isSheetsSyncing,
+        lastSheetsSyncTime,
+        handleManualSheetsSync,
 
         isAddModalOpen,
         setIsAddModalOpen,
@@ -241,3 +340,4 @@ export function useMedia() {
   }
   return context;
 }
+
