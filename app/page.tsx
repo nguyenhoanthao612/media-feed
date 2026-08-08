@@ -7,6 +7,8 @@ import { MediaFeed } from '@/components/feed/MediaFeed';
 export default function HomePage() {
   const {
     items,
+    isLoading,
+    isSheetsSyncing,
     activeItemId,
     continuousPlay,
     handleToggleContinuousPlay,
@@ -20,6 +22,8 @@ export default function HomePage() {
   return (
     <MediaFeed
       items={items}
+      isLoading={isLoading}
+      isSheetsSyncing={isSheetsSyncing}
       activeItemId={activeItemId}
       continuousPlay={continuousPlay}
       onToggleContinuousPlay={handleToggleContinuousPlay}

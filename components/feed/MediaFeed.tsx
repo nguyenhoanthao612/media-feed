@@ -13,6 +13,8 @@ export interface FeedEntry {
 
 interface MediaFeedProps {
   items: MediaItem[];
+  isLoading?: boolean;
+  isSheetsSyncing?: boolean;
   activeItemId?: string | null;
   continuousPlay: boolean;
   isMuted: boolean;
@@ -73,6 +75,8 @@ function createRoundEntries(
 
 export function MediaFeed({
   items,
+  isLoading = false,
+  isSheetsSyncing = false,
   activeItemId: externalActiveItemId,
   continuousPlay,
   isMuted,
@@ -267,6 +271,21 @@ export function MediaFeed({
   };
 
   if (items.length === 0) {
+    if (isLoading || isSheetsSyncing) {
+      return (
+        <div className="w-full h-[80vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="relative flex items-center justify-center">
+            <div className="w-14 h-14 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+            <Sparkles className="w-5 h-5 text-indigo-400 absolute animate-pulse" />
+          </div>
+          <div className="space-y-1.5 max-w-sm">
+            <h3 className="text-base font-semibold text-zinc-200">Đang tải danh sách Media...</h3>
+            <p className="text-xs text-zinc-400">Đang đồng bộ dữ liệu từ Google Sheets / Bộ nhớ. Vui lòng chờ trong giây lát.</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="w-full h-[80vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
         <div className="p-4 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400">
