@@ -1,0 +1,6 @@
+{
+  "name": "My Media Feed",
+  "description": "Personal vertical media feed for video, audio, image, and image+audio content with continuous auto-playback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
