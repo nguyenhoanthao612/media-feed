@@ -279,8 +279,7 @@ export function MediaFeed({
             <Sparkles className="w-5 h-5 text-indigo-400 absolute animate-pulse" />
           </div>
           <div className="space-y-1.5 max-w-sm">
-            <h3 className="text-base font-semibold text-zinc-200">Đang tải danh sách Media...</h3>
-            <p className="text-xs text-zinc-400">Đang đồng bộ dữ liệu từ Google Sheets / Bộ nhớ. Vui lòng chờ trong giây lát.</p>
+            <p className="text-sm font-medium text-zinc-300">Đang tải dữ liệu</p>
           </div>
         </div>
       );
