@@ -6,6 +6,9 @@ import {
   GOOGLE_APPS_SCRIPT_CODE,
   getStoredSheetsWebAppUrl,
   setStoredSheetsWebAppUrl,
+  resetToDefaultSheetsWebAppUrl,
+  isUsingCustomSheetsUrl,
+  DEFAULT_GOOGLE_APPS_SCRIPT_URL,
   getStoredAutoSync,
   setStoredAutoSync,
   testSheetsConnection,
@@ -49,6 +52,12 @@ export function SettingsView({
       setTestResult(res);
       setIsTesting(false);
     }
+  };
+
+  const handleResetDefaultUrl = () => {
+    const defaultUrl = resetToDefaultSheetsWebAppUrl();
+    setWebAppUrl(defaultUrl);
+    setTestResult({ success: true, message: 'Đã khôi phục về URL Google Apps Script mặc định của hệ thống!' });
   };
 
   const handleCopyCode = () => {
@@ -112,9 +121,23 @@ export function SettingsView({
 
           {/* WEB APP URL INPUT */}
           <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-3">
-            <label className="block text-xs font-semibold text-zinc-300">
-              1. URL Ứng dụng Web (Google Apps Script Web App URL)
-            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="block text-xs font-semibold text-zinc-300">
+                1. URL Ứng dụng Web (Google Apps Script Web App URL)
+              </label>
+              <div className="flex items-center space-x-2">
+                {isUsingCustomSheetsUrl() ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    URL tùy chỉnh cá nhân
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    URL hệ thống mặc định (Gán cứng)
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
               <input
                 type="url"
@@ -133,9 +156,21 @@ export function SettingsView({
                 ) : (
                   <ShieldCheck className="w-3.5 h-3.5" />
                 )}
-                <span>{isTesting ? 'Đang thử...' : 'Lưu & Kiểm tra'}</span>
+                <span>{isTesting ? 'Đang thử...' : 'Lưu URL'}</span>
               </button>
             </div>
+
+            {isUsingCustomSheetsUrl() && (
+              <div className="flex justify-end pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleResetDefaultUrl}
+                  className="text-[11px] text-zinc-400 hover:text-emerald-400 underline transition-colors"
+                >
+                  ↩ Khôi phục về URL Google Apps Script mặc định của hệ thống
+                </button>
+              </div>
+            )}
 
             {testResult && (
               <div

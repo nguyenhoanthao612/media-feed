@@ -1,5 +1,10 @@
 import { MediaItem } from '@/types/media';
 
+// Gán cứng URL Apps Script mặc định của bạn tại đây (hoặc cấu hình qua biến môi trường NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL)
+export const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 
+  process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL || 
+  'https://script.google.com/macros/s/AKfycbx_EXAMPLE_APPS_SCRIPT_URL/exec';
+
 export const GOOGLE_APPS_SCRIPT_CODE = `// ==========================================
 // GOOGLE APPS SCRIPT FOR MY MEDIA FEED DB
 // Hướng dẫn:
@@ -131,13 +136,30 @@ const LOCAL_STORAGE_WEBAPP_KEY = 'media_feed_google_sheets_webapp_url';
 const LOCAL_STORAGE_AUTO_SYNC_KEY = 'media_feed_google_sheets_auto_sync';
 
 export function getStoredSheetsWebAppUrl(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(LOCAL_STORAGE_WEBAPP_KEY) || '';
+  if (typeof window === 'undefined') return DEFAULT_GOOGLE_APPS_SCRIPT_URL;
+  const customUrl = localStorage.getItem(LOCAL_STORAGE_WEBAPP_KEY);
+  if (customUrl && customUrl.trim()) {
+    return customUrl.trim();
+  }
+  return DEFAULT_GOOGLE_APPS_SCRIPT_URL;
+}
+
+export function isUsingCustomSheetsUrl(): boolean {
+  if (typeof window === 'undefined') return false;
+  const customUrl = localStorage.getItem(LOCAL_STORAGE_WEBAPP_KEY);
+  return Boolean(customUrl && customUrl.trim() && customUrl.trim() !== DEFAULT_GOOGLE_APPS_SCRIPT_URL);
 }
 
 export function setStoredSheetsWebAppUrl(url: string) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(LOCAL_STORAGE_WEBAPP_KEY, url.trim());
+}
+
+export function resetToDefaultSheetsWebAppUrl(): string {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(LOCAL_STORAGE_WEBAPP_KEY);
+  }
+  return DEFAULT_GOOGLE_APPS_SCRIPT_URL;
 }
 
 export function getStoredAutoSync(): boolean {
