@@ -385,6 +385,15 @@ export function AddMediaModal({
                 </div>
               )}
 
+              {urlInput && extractYouTubeId(urlInput) && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300/90 leading-relaxed space-y-1">
+                  <p className="font-semibold text-amber-300">💡 Lưu ý về Video YouTube Chế độ Riêng tư:</p>
+                  <p>
+                    YouTube <b>không cho phép nhúng (embed)</b> các video cài đặt chế độ <b>&quot;Riêng tư&quot; (Private)</b>. Để phát được trên ứng dụng, vui lòng đổi quyền riêng tư của video trên YouTube thành <b>&quot;Công khai&quot; (Public)</b> hoặc <b>&quot;Không công khai&quot; (Unlisted)</b>.
+                  </p>
+                </div>
+              )}
+
               {urlError && (
                 <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
                   {urlError}

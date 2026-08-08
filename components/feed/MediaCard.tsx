@@ -558,6 +558,18 @@ export function MediaCard({
           {/* Context Dropdown Menu */}
           {showMenu && (
             <div className="absolute right-0 bottom-12 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-1.5 z-50 text-xs">
+              {isYouTube && item.sourceUrl && (
+                <a
+                  href={item.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowMenu(false)}
+                  className="w-full flex items-center space-x-2.5 px-3 py-2 text-indigo-300 hover:text-white hover:bg-indigo-600/20 rounded-lg transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4 text-indigo-400" />
+                  <span>Mở trên YouTube</span>
+                </a>
+              )}
               {onEdit && (
                 <button
                   onClick={() => {
