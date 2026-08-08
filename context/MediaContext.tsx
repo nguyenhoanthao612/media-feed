@@ -68,7 +68,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const [continuousPlay, setContinuousPlay] = useState<boolean>(true);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
   // Sheets Sync State
@@ -90,57 +90,17 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     async function init() {
       try {
-        let [mediaList, colList] = await Promise.all([
+        const [mediaList, colList] = await Promise.all([
           getAllMedia(),
           getAllCollections(),
         ]);
 
         if (!isMounted) return;
 
-        // Display local IndexedDB data immediately
+        // Display local IndexedDB data immediately to unlock UI instantly (<100ms)
         setItems(mediaList);
         setCollections(colList);
-
-        if (mediaList.length > 0) {
-          setActiveItemId((prev) => prev || mediaList[0].id);
-        }
-
-        // Try syncing automatically from Google Sheets on startup
-        const webAppUrl = getStoredSheetsWebAppUrl();
-        if (webAppUrl) {
-          try {
-            setIsSheetsSyncing(true);
-            const remoteItems = await fetchItemsFromSheets(webAppUrl);
-            if (remoteItems.length > 0) {
-              // Merge remote items with local items, prioritizing remote Google Sheets items
-              const itemMap = new Map<string, MediaItem>();
-              remoteItems.forEach((it) => itemMap.set(it.id, it));
-              mediaList.forEach((it) => {
-                if (!itemMap.has(it.id)) {
-                  itemMap.set(it.id, it);
-                }
-              });
-              
-              const mergedList = Array.from(itemMap.values());
-              // Persist remote items to local IndexedDB
-              for (const rItem of remoteItems) {
-                await saveMediaItem(rItem);
-              }
-              
-              if (isMounted) {
-                setItems(mergedList);
-                if (mergedList.length > 0) {
-                  setActiveItemId((prev) => prev || mergedList[0].id);
-                }
-                setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
-              }
-            }
-          } catch (e) {
-            console.warn('Initial Google Sheets sync skipped or failed:', e);
-          } finally {
-            if (isMounted) setIsSheetsSyncing(false);
-          }
-        }
+        setIsLoading(false);
 
         // Check Saved Playback State
         const savedState = localStorage.getItem(LOCAL_STORAGE_LAST_STATE);
@@ -166,7 +126,38 @@ export function MediaProvider({ children }: { children: ReactNode }) {
           setContinuousPlay(savedContinuous === 'true');
         }
 
-        setIsLoading(false);
+        // Asynchronous non-blocking background sync from Google Sheets
+        const webAppUrl = getStoredSheetsWebAppUrl();
+        if (webAppUrl) {
+          setIsSheetsSyncing(true);
+          fetchItemsFromSheets(webAppUrl)
+            .then(async (remoteItems) => {
+              if (!isMounted || remoteItems.length === 0) return;
+
+              const itemMap = new Map<string, MediaItem>();
+              remoteItems.forEach((it) => itemMap.set(it.id, it));
+              mediaList.forEach((it) => {
+                if (!itemMap.has(it.id)) {
+                  itemMap.set(it.id, it);
+                }
+              });
+
+              const mergedList = Array.from(itemMap.values());
+              setItems(mergedList);
+              setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
+
+              // Persist to local storage in background
+              for (const rItem of remoteItems) {
+                await saveMediaItem(rItem);
+              }
+            })
+            .catch((e) => {
+              console.warn('Background Google Sheets sync skipped or failed:', e);
+            })
+            .finally(() => {
+              if (isMounted) setIsSheetsSyncing(false);
+            });
+        }
       } catch (err) {
         console.error('Error loading media database:', err);
         if (isMounted) setIsLoading(false);

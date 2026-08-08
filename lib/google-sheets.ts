@@ -178,8 +178,16 @@ export function setStoredAutoSync(enabled: boolean) {
  */
 export async function fetchItemsFromSheets(webAppUrl: string): Promise<MediaItem[]> {
   if (!webAppUrl || !webAppUrl.startsWith('http')) return [];
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+
   try {
-    const res = await fetch(webAppUrl, { method: 'GET', cache: 'no-store' });
+    const res = await fetch(webAppUrl, { 
+      method: 'GET', 
+      cache: 'no-store',
+      signal: controller.signal 
+    });
+    clearTimeout(timeoutId);
     if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
     const data = await res.json();
     if (data.success && Array.isArray(data.items)) {
@@ -199,9 +207,14 @@ export async function fetchItemsFromSheets(webAppUrl: string): Promise<MediaItem
       }));
     }
     return [];
-  } catch (error) {
-    console.error('Error fetching from Google Sheets:', error);
-    throw error;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error?.name === 'AbortError') {
+      console.warn('Google Sheets fetch timed out after 4 seconds');
+    } else {
+      console.error('Error fetching from Google Sheets:', error);
+    }
+    return [];
   }
 }
 

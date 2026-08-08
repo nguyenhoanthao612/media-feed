@@ -30,7 +30,7 @@ export function extractYouTubeId(url: string): string | null {
   return null;
 }
 
-export function getYouTubeEmbedUrl(videoId: string, autoplay = true, muted = false): string {
+export function getYouTubeEmbedUrl(videoId: string, autoplay = true, muted = true): string {
   const params = new URLSearchParams({
     autoplay: autoplay ? '1' : '0',
     mute: muted ? '1' : '0',

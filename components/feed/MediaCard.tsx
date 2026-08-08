@@ -113,13 +113,21 @@ export function MediaCard({
       if (audioRef.current) {
         audioRef.current.pause();
       }
+      if (iframeRef.current?.contentWindow && isYouTube) {
+        try {
+          iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }),
+            '*'
+          );
+        } catch {}
+      }
       if (imageTimerRef.current) {
         clearTimeout(imageTimerRef.current);
       }
       return;
     }
 
-    // Item becomes active -> start playing
+    // Item becomes active -> start playing automatically
     if (item.type === 'video' && videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.muted = isMutedRef.current;
@@ -132,16 +140,14 @@ export function MediaCard({
             setLoadError(false);
           })
           .catch((err) => {
-            console.warn('Autoplay blocked for video, trying muted fallback:', err);
+            console.warn('Autoplay blocked for video, falling back to muted autoplay:', err);
             if (videoRef.current) {
               videoRef.current.muted = true;
               videoRef.current.play().then(() => {
                 setIsPlaying(true);
-                setHasAutoplayError(true);
+                setHasAutoplayError(false);
               }).catch(() => {
-                // Autoplay gesture needed by browser - NOT a media load error
                 setIsPlaying(false);
-                setHasAutoplayError(true);
               });
             }
           });
@@ -158,20 +164,30 @@ export function MediaCard({
             setLoadError(false);
           })
           .catch((err) => {
-            console.warn('Autoplay blocked for audio, trying muted fallback:', err);
+            console.warn('Autoplay blocked for audio, falling back to muted autoplay:', err);
             if (audioRef.current) {
               audioRef.current.muted = true;
               audioRef.current.play().then(() => {
                 setIsPlaying(true);
-                setHasAutoplayError(true);
+                setHasAutoplayError(false);
               }).catch(() => {
-                // Autoplay gesture needed by browser - NOT a media load error
                 setIsPlaying(false);
-                setHasAutoplayError(true);
               });
             }
           });
       }
+    } else if ((item.type === 'external_video' || isYouTube) && iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: isMuted ? 'mute' : 'unMute', args: [] }),
+          '*'
+        );
+      } catch {}
+      setIsPlaying(true);
     } else if (item.type === 'image') {
       // For pure image cards, simulate a viewing duration (default 8s) if continuous play is ON
       if (continuousPlay) {
@@ -185,7 +201,7 @@ export function MediaCard({
     return () => {
       if (imageTimerRef.current) clearTimeout(imageTimerRef.current);
     };
-  }, [isActive, item, continuousPlay, onEnded]);
+  }, [isActive, item, isYouTube, isMuted, continuousPlay, onEnded]);
 
   // Sync volume & mute state when global mute toggles
   useEffect(() => {
