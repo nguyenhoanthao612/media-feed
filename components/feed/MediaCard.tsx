@@ -37,7 +37,7 @@ function isImageUrl(url?: string): boolean {
 // Helper to resolve valid audio source URL
 function getAudioSrc(item: MediaItem): string | undefined {
   if (item.audioUrl && !isImageUrl(item.audioUrl)) return item.audioUrl;
-  if (item.type === 'audio') {
+  if (item.type === 'audio' || item.type === 'image_audio') {
     if (item.previewUrl && !isImageUrl(item.previewUrl)) return item.previewUrl;
     if (item.sourceUrl && !isImageUrl(item.sourceUrl)) return item.sourceUrl;
   }

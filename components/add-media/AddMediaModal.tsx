@@ -37,8 +37,15 @@ export function AddMediaModal({
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   
   // Image + Audio state (Tab 2)
+  const [imageInputMode, setImageInputMode] = useState<'file' | 'url'>('file');
+  const [audioInputMode, setAudioInputMode] = useState<'file' | 'url'>('file');
+
   const [comboImageFile, setComboImageFile] = useState<File | null>(null);
+  const [comboImageUrl, setComboImageUrl] = useState('');
+  
   const [comboAudioFile, setComboAudioFile] = useState<File | null>(null);
+  const [comboAudioUrl, setComboAudioUrl] = useState('');
+
   const [comboImagePreview, setComboImagePreview] = useState<string | null>(null);
   const [comboAudioName, setComboAudioName] = useState<string | null>(null);
 
@@ -141,18 +148,28 @@ export function AddMediaModal({
         collectionId: selectedCollection || undefined,
       };
     } else if (activeTab === 'image_audio') {
-      if (!comboImageFile || !comboAudioFile) {
+      const hasImage = imageInputMode === 'file' ? Boolean(comboImageFile) : Boolean(comboImageUrl.trim());
+      const hasAudio = audioInputMode === 'file' ? Boolean(comboAudioFile) : Boolean(comboAudioUrl.trim());
+
+      if (!hasImage || !hasAudio) {
         setIsSubmitting(false);
         return;
       }
+
+      const imageUrl = imageInputMode === 'url' ? comboImageUrl.trim() : undefined;
+      const audioUrlVal = audioInputMode === 'url' ? comboAudioUrl.trim() : undefined;
 
       newItem = {
         id: newItemId,
         title,
         description,
         type: 'image_audio',
-        imageBlob: comboImageFile,
-        audioBlob: comboAudioFile,
+        imageBlob: imageInputMode === 'file' ? (comboImageFile || undefined) : undefined,
+        audioBlob: audioInputMode === 'file' ? (comboAudioFile || undefined) : undefined,
+        sourceUrl: imageUrl || audioUrlVal,
+        thumbnailUrl: imageUrl,
+        previewUrl: imageUrl,
+        audioUrl: audioUrlVal,
         tags: tagsArr,
         favorite: false,
         createdAt: Date.now(),
@@ -306,54 +323,170 @@ export function AddMediaModal({
           {activeTab === 'image_audio' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Image Input */}
-              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2 text-center">
-                <p className="text-xs font-semibold text-zinc-300">1. Chọn hình ảnh nền</p>
-                {comboImagePreview ? (
-                  <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-zinc-700">
-                    <img src={comboImagePreview} alt="Preview" className="w-full h-full object-cover" />
+              <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-zinc-300">1. Hình ảnh nền</p>
+                  <div className="flex bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('file')}
+                      className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                        imageInputMode === 'file' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Tải tệp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('url')}
+                      className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                        imageInputMode === 'url' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      URL
+                    </button>
                   </div>
+                </div>
+
+                {imageInputMode === 'file' ? (
+                  comboImagePreview ? (
+                    <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-zinc-700 group">
+                      <img src={comboImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setComboImageFile(null);
+                          setComboImagePreview(null);
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-black/70 hover:bg-rose-600 text-white rounded-full backdrop-blur-sm transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block p-4 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl cursor-pointer text-center text-[11px] text-zinc-400">
+                      <span>+ Chọn tệp ảnh (.jpg, .png)</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setComboImageFile(file);
+                            setComboImagePreview(URL.createObjectURL(file));
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )
                 ) : (
-                  <label className="block p-4 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl cursor-pointer text-[11px] text-zinc-400">
-                    <span>+ Chọn ảnh (.jpg, .png)</span>
+                  <div className="space-y-2">
                     <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setComboImageFile(file);
-                          setComboImagePreview(URL.createObjectURL(file));
-                        }
-                      }}
-                      className="hidden"
+                      type="url"
+                      placeholder="Dán URL ảnh (https://images.unsplash.com/...)..."
+                      value={comboImageUrl}
+                      onChange={(e) => setComboImageUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                     />
-                  </label>
+                    {comboImageUrl.trim() ? (
+                      <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900">
+                        <img
+                          src={comboImageUrl.trim()}
+                          alt="URL Preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-zinc-900/50 border border-zinc-800/60 rounded-lg text-[10px] text-zinc-500 text-center">
+                        Nhập URL ảnh trực tiếp từ Unsplash, Imgur, Web...
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
               {/* Audio Input */}
-              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2 text-center">
-                <p className="text-xs font-semibold text-zinc-300">2. Chọn tệp nhạc đi kèm</p>
-                {comboAudioName ? (
-                  <div className="p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-indigo-300 truncate">
-                    🎵 {comboAudioName}
+              <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-zinc-300">2. Nhạc / Audio đi kèm</p>
+                  <div className="flex bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setAudioInputMode('file')}
+                      className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                        audioInputMode === 'file' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Tải tệp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAudioInputMode('url')}
+                      className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                        audioInputMode === 'url' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      URL
+                    </button>
                   </div>
+                </div>
+
+                {audioInputMode === 'file' ? (
+                  comboAudioName ? (
+                    <div className="p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-indigo-300 flex items-center justify-between">
+                      <span className="truncate">🎵 {comboAudioName}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setComboAudioFile(null);
+                          setComboAudioName(null);
+                        }}
+                        className="p-1 text-zinc-400 hover:text-rose-400 transition-colors ml-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block p-4 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl cursor-pointer text-center text-[11px] text-zinc-400">
+                      <span>+ Chọn tệp nhạc (.mp3, .wav)</span>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setComboAudioFile(file);
+                            setComboAudioName(file.name);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )
                 ) : (
-                  <label className="block p-4 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl cursor-pointer text-[11px] text-zinc-400">
-                    <span>+ Chọn audio (.mp3, .wav)</span>
+                  <div className="space-y-2">
                     <input
-                      type="file"
-                      accept="audio/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setComboAudioFile(file);
-                          setComboAudioName(file.name);
-                        }
-                      }}
-                      className="hidden"
+                      type="url"
+                      placeholder="Dán URL âm thanh (direct .mp3, .wav, .ogg)..."
+                      value={comboAudioUrl}
+                      onChange={(e) => setComboAudioUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                     />
-                  </label>
+                    {comboAudioUrl.trim() ? (
+                      <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-[11px] text-indigo-300 flex items-center space-x-2">
+                        <Music className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <span className="truncate font-medium">URL âm thanh đã sẵn sàng</span>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-zinc-900/50 border border-zinc-800/60 rounded-lg text-[10px] text-zinc-500 text-center">
+                        Dán liên kết tệp .mp3 / .wav trực tiếp từ server
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

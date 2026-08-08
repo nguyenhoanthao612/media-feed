@@ -234,7 +234,7 @@ function processMediaItems(items: MediaItem[]): MediaItem[] {
     // Process Blob for Audio in image_audio or audio
     if (processed.audioBlob) {
       processed.audioUrl = getObjectUrlForBlob(processed.id, 'audio', processed.audioBlob);
-    } else if (processed.type === 'audio' && !processed.audioUrl) {
+    } else if ((processed.type === 'audio' || processed.type === 'image_audio') && !processed.audioUrl) {
       if (processed.sourceUrl && !processed.sourceUrl.includes('images.unsplash.com')) {
         processed.audioUrl = processed.sourceUrl;
       }
