@@ -37,22 +37,27 @@ export function MediaFeed({
   const [activeItemId, setActiveItemId] = useState<string | null>(externalActiveItemId || items[0]?.id || null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const isProgrammaticScrollRef = useRef<boolean>(false);
+  const isProgrammaticScrollRef = useRef<boolean>(Boolean(externalActiveItemId));
 
   // Scroll active item into view instantly when externalActiveItemId is provided
   useEffect(() => {
     if (externalActiveItemId) {
       isProgrammaticScrollRef.current = true;
 
+      const node = itemRefs.current.get(externalActiveItemId);
+      if (node) {
+        node.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
+
       const timer = setTimeout(() => {
         setActiveItemId(externalActiveItemId);
-        const node = itemRefs.current.get(externalActiveItemId);
-        if (node) {
-          node.scrollIntoView({ behavior: 'auto', block: 'center' });
+        const n = itemRefs.current.get(externalActiveItemId);
+        if (n) {
+          n.scrollIntoView({ behavior: 'auto', block: 'center' });
         }
         const unlockTimer = setTimeout(() => {
           isProgrammaticScrollRef.current = false;
-        }, 200);
+        }, 300);
         return () => clearTimeout(unlockTimer);
       }, 0);
 

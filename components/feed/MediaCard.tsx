@@ -76,12 +76,18 @@ export function MediaCard({
   const [showControls, setShowControls] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [initialMuted] = useState(isMuted);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const youtubeId = extractYouTubeId(item.sourceUrl || item.previewUrl || '');
+  const isYouTube = Boolean(youtubeId);
+  const videoSrc = getVideoSrc(item);
+  const audioSrc = getAudioSrc(item);
 
   // Auto hide controls overlay after 3.5s of inactivity
   const handleMouseMove = () => {
@@ -91,6 +97,11 @@ export function MediaCard({
       if (isPlaying) setShowControls(false);
     }, 3500);
   };
+
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   // Synchronize playback active state
   useEffect(() => {
@@ -111,7 +122,7 @@ export function MediaCard({
     // Item becomes active -> start playing
     if (item.type === 'video' && videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.muted = isMuted;
+      videoRef.current.muted = isMutedRef.current;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise
@@ -137,7 +148,7 @@ export function MediaCard({
       }
     } else if ((item.type === 'audio' || item.type === 'image_audio') && audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.muted = isMuted;
+      audioRef.current.muted = isMutedRef.current;
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise
@@ -174,7 +185,7 @@ export function MediaCard({
     return () => {
       if (imageTimerRef.current) clearTimeout(imageTimerRef.current);
     };
-  }, [isActive, isMuted, item, continuousPlay, onEnded]);
+  }, [isActive, item, continuousPlay, onEnded]);
 
   // Sync volume & mute state when global mute toggles
   useEffect(() => {
@@ -184,7 +195,21 @@ export function MediaCard({
     if (audioRef.current) {
       audioRef.current.muted = isMuted;
     }
-  }, [isMuted]);
+    if (iframeRef.current?.contentWindow && isYouTube) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: isMuted ? 'mute' : 'unMute',
+            args: [],
+          }),
+          '*'
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }, [isMuted, isYouTube]);
 
   // Handle Play/Pause toggle manually
   const togglePlayPause = () => {
@@ -229,11 +254,6 @@ export function MediaCard({
     setIsPlaying(false);
     onEnded();
   }, [onEnded]);
-
-  const youtubeId = extractYouTubeId(item.sourceUrl || item.previewUrl || '');
-  const isYouTube = Boolean(youtubeId);
-  const videoSrc = getVideoSrc(item);
-  const audioSrc = getAudioSrc(item);
 
   // Listen to YouTube postMessage events when active
   useEffect(() => {
@@ -428,12 +448,20 @@ export function MediaCard({
             {youtubeId ? (
               <iframe
                 ref={iframeRef}
-                src={getYouTubeEmbedUrl(youtubeId, isActive, isMuted)}
+                src={getYouTubeEmbedUrl(youtubeId, isActive, initialMuted)}
                 title={item.title}
                 onLoad={() => {
                   if (iframeRef.current?.contentWindow) {
                     try {
                       iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+                      iframeRef.current.contentWindow.postMessage(
+                        JSON.stringify({
+                          event: 'command',
+                          func: isMuted ? 'mute' : 'unMute',
+                          args: [],
+                        }),
+                        '*'
+                      );
                     } catch {}
                   }
                 }}
