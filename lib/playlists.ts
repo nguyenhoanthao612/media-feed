@@ -6,7 +6,9 @@ export function getSmartPlaylists(items: MediaItem[]): Playlist[] {
   const smartPlaylists: Playlist[] = [];
 
   // 1. All Videos / Video Playlist
-  const videoItems = items.filter((i) => i.type === 'video' || i.type === 'external_video');
+  const videoItems = items.filter(
+    (i) => i.type === 'video' || i.type === 'external_video' || i.collectionId === 'video' || i.collectionId === 'Video & Clip Ngắn'
+  );
   if (videoItems.length > 0) {
     smartPlaylists.push({
       id: 'smart-videos',
@@ -25,6 +27,7 @@ export function getSmartPlaylists(items: MediaItem[]): Playlist[] {
     (i) =>
       i.collectionId === 'relax' ||
       i.collectionId === 'nature' ||
+      i.collectionId === 'Thư Giãn & Thiên Nhiên' ||
       i.tags.some((t) => ['#relax', '#nature', '#waterfall', '#sunset', '#ambient'].includes(t.toLowerCase()))
   );
   if (relaxItems.length > 0) {
@@ -44,6 +47,7 @@ export function getSmartPlaylists(items: MediaItem[]): Playlist[] {
   const studyItems = items.filter(
     (i) =>
       i.collectionId === 'study' ||
+      i.collectionId === 'Học Tập & Focus Lofi' ||
       i.tags.some((t) => ['#study', '#lofi', '#chill', '#focus'].includes(t.toLowerCase()))
   );
   if (studyItems.length > 0) {
@@ -64,6 +68,8 @@ export function getSmartPlaylists(items: MediaItem[]): Playlist[] {
     (i) =>
       i.type === 'audio' ||
       i.type === 'image_audio' ||
+      i.collectionId === 'music' ||
+      i.collectionId === 'Âm Nhạc & Podcasts' ||
       i.tags.some((t) => ['#music', '#piano', '#song'].includes(t.toLowerCase()))
   );
   if (musicItems.length > 0) {
@@ -80,7 +86,13 @@ export function getSmartPlaylists(items: MediaItem[]): Playlist[] {
   }
 
   // 5. YouTube & Streaming
-  const youtubeItems = items.filter((i) => i.type === 'external_video' || i.tags.some((t) => t.toLowerCase().includes('youtube')));
+  const youtubeItems = items.filter(
+    (i) =>
+      i.type === 'external_video' ||
+      i.collectionId === 'youtube' ||
+      i.collectionId === 'YouTube & Stream Online' ||
+      i.tags.some((t) => t.toLowerCase().includes('youtube'))
+  );
   if (youtubeItems.length > 0) {
     smartPlaylists.push({
       id: 'smart-youtube',

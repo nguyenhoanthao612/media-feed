@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MediaItem, MediaType, Collection } from '@/types/media';
 import { detectMediaTypeFromFile, detectMediaTypeFromUrl } from '@/lib/media-detector';
 import { extractYouTubeId } from '@/lib/youtube';
+import { getCustomPlaylists, addMediaToPlaylist } from '@/lib/playlists';
 import { 
   Upload, Link as LinkIcon, Sparkles, X, Check, 
   Video, Music, Image as ImageIcon, AlertCircle, FileText 
@@ -189,6 +190,9 @@ export function AddMediaModal({
 
     try {
       await onSaveMedia(newItem);
+      if (selectedCollection && selectedCollection.startsWith('custom-pl-')) {
+        addMediaToPlaylist(selectedCollection, newItemId);
+      }
       setIsSubmitting(false);
       onClose();
     } catch (err) {
@@ -447,7 +451,7 @@ export function AddMediaModal({
 
               <div>
                 <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                  Bộ sưu tập
+                  Bộ sưu tập / Danh sách phát
                 </label>
                 <select
                   value={selectedCollection}
@@ -455,9 +459,18 @@ export function AddMediaModal({
                   className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
                 >
                   <option value="">Không phân loại</option>
-                  {collections.map((col) => (
-                    <option key={col.id} value={col.id}>{col.name}</option>
-                  ))}
+                  <optgroup label="Danh Sách Phát Mặc Định">
+                    {collections.map((col) => (
+                      <option key={col.id} value={col.id}>{col.name}</option>
+                    ))}
+                  </optgroup>
+                  {getCustomPlaylists().length > 0 && (
+                    <optgroup label="Danh Sách Phát Tùy Chỉnh">
+                      {getCustomPlaylists().map((pl) => (
+                        <option key={pl.id} value={pl.id}>{pl.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
             </div>

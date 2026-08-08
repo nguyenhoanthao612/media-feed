@@ -161,10 +161,11 @@ const INITIAL_SEED_ITEMS: Omit<MediaItem, 'previewUrl'>[] = [
 ];
 
 const INITIAL_COLLECTIONS: Collection[] = [
-  { id: 'relax', name: 'Thư giãn & Thả lỏng', icon: 'Sparkles', color: 'bg-emerald-500/20 text-emerald-400' },
-  { id: 'study', name: 'Học tập & Làm việc', icon: 'BookOpen', color: 'bg-blue-500/20 text-blue-400' },
-  { id: 'nature', name: 'Thiên nhiên & Động vật', icon: 'Trees', color: 'bg-amber-500/20 text-amber-400' },
-  { id: 'art', name: 'Nghệ thuật & Hình ảnh', icon: 'Image', color: 'bg-purple-500/20 text-purple-400' },
+  { id: 'relax', name: 'Thư Giãn & Thiên Nhiên', icon: 'Sparkles', color: 'bg-emerald-500/20 text-emerald-400' },
+  { id: 'study', name: 'Học Tập & Focus Lofi', icon: 'BookOpen', color: 'bg-blue-500/20 text-blue-400' },
+  { id: 'music', name: 'Âm Nhạc & Podcasts', icon: 'Music', color: 'bg-rose-500/20 text-rose-400' },
+  { id: 'video', name: 'Video & Clip Ngắn', icon: 'Video', color: 'bg-purple-500/20 text-purple-400' },
+  { id: 'youtube', name: 'YouTube & Stream Online', icon: 'Youtube', color: 'bg-red-500/20 text-red-400' },
 ];
 
 export async function getAllMedia(): Promise<MediaItem[]> {
@@ -369,7 +370,35 @@ export async function getAllCollections(): Promise<Collection[]> {
     const store = tx.objectStore(STORE_COLLECTIONS);
     const req = store.getAll();
 
-    req.onsuccess = () => resolve(req.result || INITIAL_COLLECTIONS);
+    req.onsuccess = () => {
+      let cols: Collection[] = req.result || [];
+      if (cols.length === 0) {
+        cols = INITIAL_COLLECTIONS;
+      } else {
+        cols = cols.map((c) => {
+          if (c.id === 'relax' || c.name === 'Thư giãn & Thả lỏng') {
+            return { ...c, id: 'relax', name: 'Thư Giãn & Thiên Nhiên' };
+          }
+          if (c.id === 'study' || c.name === 'Học tập & Làm việc') {
+            return { ...c, id: 'study', name: 'Học Tập & Focus Lofi' };
+          }
+          if (c.id === 'nature' || c.name === 'Thiên nhiên & Động vật') {
+            return { ...c, id: 'relax', name: 'Thư Giãn & Thiên Nhiên' };
+          }
+          if (c.id === 'art' || c.name === 'Nghệ thuật & Hình ảnh') {
+            return { ...c, id: 'video', name: 'Video & Clip Ngắn' };
+          }
+          return c;
+        });
+      }
+
+      // Merge with INITIAL_COLLECTIONS to ensure all standard playlists exist
+      const colMap = new Map<string, Collection>();
+      INITIAL_COLLECTIONS.forEach((c) => colMap.set(c.id, c));
+      cols.forEach((c) => colMap.set(c.id, c));
+      resolve(Array.from(colMap.values()));
+    };
+
     req.onerror = () => resolve(INITIAL_COLLECTIONS);
   });
 }

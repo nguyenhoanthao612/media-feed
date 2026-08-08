@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { MediaItem, Collection } from '@/types/media';
+import { getCustomPlaylists, addMediaToPlaylist } from '@/lib/playlists';
 import { X, Edit3 } from 'lucide-react';
 
 interface EditMediaModalProps {
@@ -72,6 +73,9 @@ function EditMediaModalForm({
 
     try {
       await onSave(updated);
+      if (selectedCollection && selectedCollection.startsWith('custom-pl-')) {
+        addMediaToPlaylist(selectedCollection, item.id);
+      }
       setIsSaving(false);
       onClose();
     } catch (err) {
@@ -129,16 +133,25 @@ function EditMediaModalForm({
             </div>
 
             <div>
-              <label className="block font-semibold text-zinc-400 mb-1">Bộ sưu tập</label>
+              <label className="block font-semibold text-zinc-400 mb-1">Bộ sưu tập / Danh sách phát</label>
               <select
                 value={selectedCollection}
                 onChange={(e) => setSelectedCollection(e.target.value)}
                 className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="">Không phân loại</option>
-                {collections.map((col) => (
-                  <option key={col.id} value={col.id}>{col.name}</option>
-                ))}
+                <optgroup label="Danh Sách Phát Mặc Định">
+                  {collections.map((col) => (
+                    <option key={col.id} value={col.id}>{col.name}</option>
+                  ))}
+                </optgroup>
+                {getCustomPlaylists().length > 0 && (
+                  <optgroup label="Danh Sách Phát Tùy Chỉnh">
+                    {getCustomPlaylists().map((pl) => (
+                      <option key={pl.id} value={pl.id}>{pl.name}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
           </div>
