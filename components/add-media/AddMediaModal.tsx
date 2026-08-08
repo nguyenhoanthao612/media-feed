@@ -56,8 +56,42 @@ export function AddMediaModal({
   const [urlValidated, setUrlValidated] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
 
+  // Auto Title Fetching State
+  const [isFetchingTitle, setIsFetchingTitle] = useState(false);
+  const [fetchedTitleSuccess, setFetchedTitleSuccess] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const fetchTitleFromUrl = async (urlStr: string) => {
+    if (!urlStr || !urlStr.trim().startsWith('http')) return;
+    setIsFetchingTitle(true);
+    setFetchedTitleSuccess(null);
+    try {
+      const res = await fetch(`/api/fetch-title?url=${encodeURIComponent(urlStr.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.title) {
+          setTitle(data.title);
+          setFetchedTitleSuccess(data.title);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to auto-fetch title:', err);
+    } finally {
+      setIsFetchingTitle(false);
+    }
+  };
+
+  // Auto-fetch title when URL changes in URL tab
+  useEffect(() => {
+    if (activeTab === 'url' && urlInput.trim().startsWith('http')) {
+      const timer = setTimeout(() => {
+        fetchTitleFromUrl(urlInput.trim());
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [urlInput, activeTab]);
 
   if (!isOpen) return null;
 
@@ -97,14 +131,7 @@ export function AddMediaModal({
       setUrlValidated(true);
       setUrlValidating(false);
 
-      if (!title) {
-        if (detected === 'external_video') {
-          const ytId = extractYouTubeId(urlInput);
-          setTitle(`YouTube Video (${ytId || 'Link'})`);
-        } else {
-          setTitle(`Media URL (${detected})`);
-        }
-      }
+      fetchTitleFromUrl(urlInput.trim());
     } catch (err) {
       setUrlError('Không thể nhận diện liên kết media này. Vui lòng kiểm tra lại URL.');
       setUrlValidating(false);
@@ -542,17 +569,42 @@ export function AddMediaModal({
           {/* COMMON METADATA INPUTS */}
           <div className="space-y-3 pt-2 border-t border-zinc-800">
             <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                Tiêu đề <span className="text-rose-400">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-semibold text-zinc-400">
+                  Tiêu đề <span className="text-rose-400">*</span>
+                </label>
+                {activeTab === 'url' && urlInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => fetchTitleFromUrl(urlInput.trim())}
+                    disabled={isFetchingTitle}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center space-x-1 transition-colors"
+                  >
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span>{isFetchingTitle ? 'Đang lấy tiêu đề...' : '✨ Tự động lấy tiêu đề'}</span>
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 required
-                placeholder="Nhập tên nội dung..."
+                placeholder="Nhập tên nội dung (hoặc tự động lấy từ YouTube)..."
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
               />
+              {isFetchingTitle && (
+                <p className="text-[10px] text-indigo-400 mt-1 flex items-center space-x-1 animate-pulse">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Đang tự động truy xuất tiêu đề video từ YouTube/Web...</span>
+                </p>
+              )}
+              {!isFetchingTitle && fetchedTitleSuccess && (
+                <p className="text-[10px] text-emerald-400 mt-1 flex items-center space-x-1">
+                  <Check className="w-3 h-3" />
+                  <span>Đã tự động lấy tiêu đề! Bạn vẫn có thể tự chỉnh sửa lại nếu muốn.</span>
+                </p>
+              )}
             </div>
 
             <div>

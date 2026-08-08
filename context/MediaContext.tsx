@@ -97,38 +97,49 @@ export function MediaProvider({ children }: { children: ReactNode }) {
 
         if (!isMounted) return;
 
-        // Try syncing from Google Sheets if configured
+        // Display local IndexedDB data immediately
+        setItems(mediaList);
+        setCollections(colList);
+
+        if (mediaList.length > 0) {
+          setActiveItemId((prev) => prev || mediaList[0].id);
+        }
+
+        // Try syncing automatically from Google Sheets on startup
         const webAppUrl = getStoredSheetsWebAppUrl();
         if (webAppUrl) {
           try {
             setIsSheetsSyncing(true);
             const remoteItems = await fetchItemsFromSheets(webAppUrl);
             if (remoteItems.length > 0) {
-              // Merge remote items with local items
+              // Merge remote items with local items, prioritizing remote Google Sheets items
               const itemMap = new Map<string, MediaItem>();
-              mediaList.forEach((it) => itemMap.set(it.id, it));
               remoteItems.forEach((it) => itemMap.set(it.id, it));
+              mediaList.forEach((it) => {
+                if (!itemMap.has(it.id)) {
+                  itemMap.set(it.id, it);
+                }
+              });
               
               const mergedList = Array.from(itemMap.values());
-              // Save remote items to local IndexedDB
+              // Persist remote items to local IndexedDB
               for (const rItem of remoteItems) {
                 await saveMediaItem(rItem);
               }
-              mediaList = mergedList;
-              setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
+              
+              if (isMounted) {
+                setItems(mergedList);
+                if (mergedList.length > 0) {
+                  setActiveItemId((prev) => prev || mergedList[0].id);
+                }
+                setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
+              }
             }
           } catch (e) {
             console.warn('Initial Google Sheets sync skipped or failed:', e);
           } finally {
             if (isMounted) setIsSheetsSyncing(false);
           }
-        }
-
-        setItems(mediaList);
-        setCollections(colList);
-
-        if (mediaList.length > 0) {
-          setActiveItemId((prev) => prev || mediaList[0].id);
         }
 
         // Check Saved Playback State
