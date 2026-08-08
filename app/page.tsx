@@ -202,6 +202,7 @@ export default function HomePage() {
             {currentTab === 'feed' && (
               <MediaFeed
                 items={items}
+                activeItemId={activeItemId}
                 continuousPlay={continuousPlay}
                 isMuted={isMuted}
                 onToggleContinuousPlay={handleToggleContinuousPlay}

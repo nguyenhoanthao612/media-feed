@@ -7,6 +7,7 @@ import { RotateCw, Search, Sparkles, Filter, Volume2, VolumeX, AlertCircle } fro
 
 interface MediaFeedProps {
   items: MediaItem[];
+  activeItemId?: string | null;
   continuousPlay: boolean;
   isMuted: boolean;
   onToggleContinuousPlay: () => void;
@@ -21,6 +22,7 @@ interface MediaFeedProps {
 
 export function MediaFeed({
   items,
+  activeItemId: externalActiveItemId,
   continuousPlay,
   isMuted,
   onToggleContinuousPlay,
@@ -32,9 +34,23 @@ export function MediaFeed({
   onDeleteItem,
   onItemActivated,
 }: MediaFeedProps) {
-  const [activeItemId, setActiveItemId] = useState<string | null>(items[0]?.id || null);
+  const [activeItemId, setActiveItemId] = useState<string | null>(externalActiveItemId || items[0]?.id || null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Scroll active item into view when externalActiveItemId is provided
+  useEffect(() => {
+    if (externalActiveItemId) {
+      const timer = setTimeout(() => {
+        setActiveItemId(externalActiveItemId);
+        const node = itemRefs.current.get(externalActiveItemId);
+        if (node) {
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [externalActiveItemId]);
 
   // Set up IntersectionObserver to detect which item is active (center of viewport)
   useEffect(() => {

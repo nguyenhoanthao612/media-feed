@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MediaItem } from '@/types/media';
 import { formatDuration } from '@/lib/media-detector';
 import { extractYouTubeId, getYouTubeEmbedUrl, isYouTubeUrl } from '@/lib/youtube';
@@ -79,6 +79,7 @@ export function MediaCard({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -224,10 +225,60 @@ export function MediaCard({
   };
 
   // Handle Media Completion
-  const handleMediaEnded = () => {
+  const handleMediaEnded = useCallback(() => {
     setIsPlaying(false);
     onEnded();
-  };
+  }, [onEnded]);
+
+  const youtubeId = extractYouTubeId(item.sourceUrl || item.previewUrl || '');
+  const isYouTube = Boolean(youtubeId);
+  const videoSrc = getVideoSrc(item);
+  const audioSrc = getAudioSrc(item);
+
+  // Listen to YouTube postMessage events when active
+  useEffect(() => {
+    if (!isActive || !isYouTube) return;
+
+    const postListening = () => {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        try {
+          iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    postListening();
+    const interval = setInterval(postListening, 2000);
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      try {
+        let data = event.data;
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+        if (!data) return;
+
+        const state = data.info?.playerState !== undefined ? data.info.playerState : data.info;
+        const isEnded =
+          (data.event === 'onStateChange' && (state === 0 || state === '0')) ||
+          (data.event === 'infoDelivery' && (state === 0 || state === '0'));
+
+        if (isEnded) {
+          handleMediaEnded();
+        }
+      } catch {
+        // ignore non-json messages
+      }
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('message', handleWindowMessage);
+    };
+  }, [isActive, isYouTube, handleMediaEnded]);
 
   // Fullscreen video toggle
   const toggleFullscreen = () => {
@@ -247,11 +298,6 @@ export function MediaCard({
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
-
-  const youtubeId = extractYouTubeId(item.sourceUrl || item.previewUrl || '');
-  const isYouTube = Boolean(youtubeId);
-  const videoSrc = getVideoSrc(item);
-  const audioSrc = getAudioSrc(item);
 
   return (
     <div 
@@ -381,8 +427,16 @@ export function MediaCard({
           <div className="relative w-full h-full flex flex-col items-center justify-center bg-black">
             {youtubeId ? (
               <iframe
+                ref={iframeRef}
                 src={getYouTubeEmbedUrl(youtubeId, isActive, isMuted)}
                 title={item.title}
+                onLoad={() => {
+                  if (iframeRef.current?.contentWindow) {
+                    try {
+                      iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+                    } catch {}
+                  }
+                }}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
                 className="w-full h-full border-0 pointer-events-auto"

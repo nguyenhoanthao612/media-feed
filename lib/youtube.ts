@@ -40,6 +40,10 @@ export function getYouTubeEmbedUrl(videoId: string, autoplay = true, muted = fal
     enablejsapi: '1',
   });
 
+  if (typeof window !== 'undefined' && window.location.origin) {
+    params.set('origin', window.location.origin);
+  }
+
   return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
 }
 
