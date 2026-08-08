@@ -37,17 +37,25 @@ export function MediaFeed({
   const [activeItemId, setActiveItemId] = useState<string | null>(externalActiveItemId || items[0]?.id || null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const isProgrammaticScrollRef = useRef<boolean>(false);
 
-  // Scroll active item into view when externalActiveItemId is provided
+  // Scroll active item into view instantly when externalActiveItemId is provided
   useEffect(() => {
     if (externalActiveItemId) {
+      isProgrammaticScrollRef.current = true;
+
       const timer = setTimeout(() => {
         setActiveItemId(externalActiveItemId);
         const node = itemRefs.current.get(externalActiveItemId);
         if (node) {
-          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          node.scrollIntoView({ behavior: 'auto', block: 'center' });
         }
-      }, 50);
+        const unlockTimer = setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 200);
+        return () => clearTimeout(unlockTimer);
+      }, 0);
+
       return () => clearTimeout(timer);
     }
   }, [externalActiveItemId]);
@@ -58,6 +66,8 @@ export function MediaFeed({
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (isProgrammaticScrollRef.current) return;
+
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const id = entry.target.getAttribute('data-id');
@@ -96,7 +106,15 @@ export function MediaFeed({
       const nextItem = items[currentIndex + 1];
       const nextNode = itemRefs.current.get(nextItem.id);
       if (nextNode) {
+        isProgrammaticScrollRef.current = true;
+        setActiveItemId(nextItem.id);
+        if (onItemActivated) {
+          onItemActivated(nextItem);
+        }
         nextNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 500);
       }
     }
   };
