@@ -203,6 +203,33 @@ export function MediaCard({
     };
   }, [isActive, item, isYouTube, isMuted, continuousPlay, onEnded]);
 
+  // Keep playback running when tab becomes visible again
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (item.type === 'video' && videoRef.current && videoRef.current.paused) {
+          videoRef.current.play().catch(() => {});
+        } else if ((item.type === 'audio' || item.type === 'image_audio') && audioRef.current && audioRef.current.paused) {
+          audioRef.current.play().catch(() => {});
+        } else if ((item.type === 'external_video' || isYouTube) && iframeRef.current?.contentWindow) {
+          try {
+            iframeRef.current.contentWindow.postMessage(
+              JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+              '*'
+            );
+          } catch {}
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isActive, item.type, isYouTube]);
+
   // Sync volume & mute state when global mute toggles
   useEffect(() => {
     if (videoRef.current) {

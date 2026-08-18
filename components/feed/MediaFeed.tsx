@@ -196,6 +196,23 @@ export function MediaFeed({
     }
   }, [items]);
 
+  // Sync scroll into view when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && activeFeedKey) {
+        const node = itemRefs.current.get(activeFeedKey);
+        if (node) {
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeFeedKey]);
+
   // Intersection Observer to detect active card in feed
   useEffect(() => {
     if (!feedSequence || feedSequence.length === 0) return;
@@ -233,24 +250,26 @@ export function MediaFeed({
     };
   }, [feedSequence, onItemActivated, maybeAppendNextRound]);
 
-  // Continuous play next trigger
-  const handleItemEnded = (endingFeedKey: string) => {
-    if (!continuousPlay) return;
+  // Continuous play next trigger - works reliably even in background tabs
+  const handleItemEnded = useCallback((endingFeedKey: string) => {
+    if (!continuousPlay || items.length === 0) return;
 
-    const currentIndex = feedSequence.findIndex((entry) => entry.feedKey === endingFeedKey);
-    if (currentIndex !== -1) {
-      let targetIndex = currentIndex + 1;
+    setFeedSequence((prevSeq) => {
+      const currentIndex = prevSeq.findIndex((entry) => entry.feedKey === endingFeedKey);
+      if (currentIndex === -1) return prevSeq;
 
-      // If at end of sequence, append next round immediately
-      if (targetIndex >= feedSequence.length) {
-        const highestRound = feedSequence[feedSequence.length - 1]?.roundIndex || 1;
-        const lastItemId = feedSequence[feedSequence.length - 1]?.item.id;
+      const targetIndex = currentIndex + 1;
+      let newSeq = [...prevSeq];
+
+      // If at or near end of sequence, append next round immediately
+      if (targetIndex >= newSeq.length - 2) {
+        const highestRound = newSeq[newSeq.length - 1]?.roundIndex || 1;
+        const lastItemId = newSeq[newSeq.length - 1]?.item.id;
         const nextRound = createRoundEntries(items, highestRound + 1, undefined, lastItemId);
-        const updatedSeq = [...feedSequence, ...nextRound];
-        setFeedSequence(updatedSeq);
+        newSeq = [...newSeq, ...nextRound];
       }
 
-      const nextEntry = feedSequence[targetIndex] || feedSequence[currentIndex];
+      const nextEntry = newSeq[targetIndex];
       if (nextEntry) {
         isProgrammaticScrollRef.current = true;
         setActiveFeedKey(nextEntry.feedKey);
@@ -258,17 +277,24 @@ export function MediaFeed({
           onItemActivated(nextEntry.item);
         }
 
-        const nextNode = itemRefs.current.get(nextEntry.feedKey);
-        if (nextNode) {
-          nextNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
+        // Trigger scroll immediately
         setTimeout(() => {
-          isProgrammaticScrollRef.current = false;
-        }, 500);
+          const nextNode = itemRefs.current.get(nextEntry.feedKey);
+          if (nextNode) {
+            nextNode.scrollIntoView({ 
+              behavior: document.visibilityState === 'visible' ? 'smooth' : 'auto', 
+              block: 'center' 
+            });
+          }
+          setTimeout(() => {
+            isProgrammaticScrollRef.current = false;
+          }, 500);
+        }, 30);
       }
-    }
-  };
+
+      return newSeq;
+    });
+  }, [continuousPlay, items, onItemActivated]);
 
   if (items.length === 0) {
     if (isLoading || isSheetsSyncing) {
