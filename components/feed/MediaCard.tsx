@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { MediaItem } from '@/types/media';
 import { formatDuration } from '@/lib/media-detector';
 import { extractYouTubeId, getYouTubeEmbedUrl, isYouTubeUrl } from '@/lib/youtube';
@@ -89,6 +89,12 @@ export function MediaCard({
   const videoSrc = getVideoSrc(item);
   const audioSrc = getAudioSrc(item);
 
+  // Stable YouTube embed URL to avoid recreating iframe DOM and reloading on active switch
+  const youtubeEmbedUrl = useMemo(() => {
+    if (!youtubeId) return '';
+    return getYouTubeEmbedUrl(youtubeId, true, true);
+  }, [youtubeId]);
+
   // Auto hide controls overlay after 3.5s of inactivity
   const handleMouseMove = () => {
     setShowControls(true);
@@ -127,9 +133,11 @@ export function MediaCard({
       return;
     }
 
-    // Item becomes active -> start playing automatically
+    // Item becomes active -> start playing immediately without delay
     if (item.type === 'video' && videoRef.current) {
-      videoRef.current.currentTime = 0;
+      if (videoRef.current.ended) {
+        videoRef.current.currentTime = 0;
+      }
       videoRef.current.muted = isMutedRef.current;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
@@ -153,7 +161,9 @@ export function MediaCard({
           });
       }
     } else if ((item.type === 'audio' || item.type === 'image_audio') && audioRef.current) {
-      audioRef.current.currentTime = 0;
+      if (audioRef.current.ended) {
+        audioRef.current.currentTime = 0;
+      }
       audioRef.current.muted = isMutedRef.current;
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
@@ -177,17 +187,28 @@ export function MediaCard({
           });
       }
     } else if ((item.type === 'external_video' || isYouTube) && iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
-          '*'
-        );
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: isMuted ? 'mute' : 'unMute', args: [] }),
-          '*'
-        );
-      } catch {}
+      const sendPlayCommand = () => {
+        try {
+          iframeRef.current?.contentWindow?.postMessage(
+            JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+            '*'
+          );
+          iframeRef.current?.contentWindow?.postMessage(
+            JSON.stringify({ event: 'command', func: isMuted ? 'mute' : 'unMute', args: [] }),
+            '*'
+          );
+        } catch {}
+      };
+      sendPlayCommand();
+      // Rapid retry to guarantee YouTube player receives play command immediately without delay
+      const t1 = setTimeout(sendPlayCommand, 120);
+      const t2 = setTimeout(sendPlayCommand, 300);
       setIsPlaying(true);
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     } else if (item.type === 'image') {
       // For pure image cards, simulate a viewing duration (default 8s) if continuous play is ON
       if (continuousPlay) {
@@ -491,7 +512,7 @@ export function MediaCard({
             {youtubeId ? (
               <iframe
                 ref={iframeRef}
-                src={getYouTubeEmbedUrl(youtubeId, isActive, initialMuted)}
+                src={youtubeEmbedUrl}
                 title={item.title}
                 onLoad={() => {
                   if (iframeRef.current?.contentWindow) {
@@ -505,6 +526,17 @@ export function MediaCard({
                         }),
                         '*'
                       );
+                      if (isActive) {
+                        iframeRef.current.contentWindow.postMessage(
+                          JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+                          '*'
+                        );
+                      } else {
+                        iframeRef.current.contentWindow.postMessage(
+                          JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }),
+                          '*'
+                        );
+                      }
                     } catch {}
                   }
                 }}

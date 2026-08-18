@@ -277,8 +277,8 @@ export function MediaFeed({
           onItemActivated(nextEntry.item);
         }
 
-        // Trigger scroll immediately
-        setTimeout(() => {
+        // Trigger scroll immediately without artificial delay
+        requestAnimationFrame(() => {
           const nextNode = itemRefs.current.get(nextEntry.feedKey);
           if (nextNode) {
             nextNode.scrollIntoView({ 
@@ -288,8 +288,8 @@ export function MediaFeed({
           }
           setTimeout(() => {
             isProgrammaticScrollRef.current = false;
-          }, 500);
-        }, 30);
+          }, 450);
+        });
       }
 
       return newSeq;
