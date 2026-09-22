@@ -11,10 +11,56 @@ import {
   getStoredAutoSync,
   fetchItemsFromSheets,
   pushAllItemsToSheets,
+  isValidGoogleSheetsUrl,
 } from '@/lib/google-sheets';
 
 const LOCAL_STORAGE_LAST_STATE = 'my_media_feed_last_position';
 const LOCAL_STORAGE_CONTINUOUS = 'my_media_feed_continuous_play';
+const LOCAL_STORAGE_ITEMS_CACHE = 'my_media_feed_fast_cache';
+const LOCAL_STORAGE_COLLECTIONS_CACHE = 'my_media_feed_collections_cache';
+
+function cacheItemsLocally(mediaItems: MediaItem[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const cleanList = mediaItems.map(({ fileBlob, imageBlob, audioBlob, ...rest }) => rest);
+    localStorage.setItem(LOCAL_STORAGE_ITEMS_CACHE, JSON.stringify(cleanList));
+  } catch {}
+}
+
+function cacheCollectionsLocally(cols: Collection[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_STORAGE_COLLECTIONS_CACHE, JSON.stringify(cols));
+  } catch {}
+}
+
+function getInitialCachedItems(): MediaItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_ITEMS_CACHE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+function getInitialCachedCollections(): Collection[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_COLLECTIONS_CACHE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return [];
+}
 
 interface MediaContextType {
   items: MediaItem[];
@@ -63,9 +109,20 @@ interface MediaContextType {
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
 
 export function MediaProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [items, setItems] = useState<MediaItem[]>(getInitialCachedItems);
+  const [collections, setCollections] = useState<Collection[]>(getInitialCachedCollections);
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(LOCAL_STORAGE_ITEMS_CACHE);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return false;
+        } catch {}
+      }
+    }
+    return true;
+  });
 
   const [continuousPlay, setContinuousPlay] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -97,9 +154,15 @@ export function MediaProvider({ children }: { children: ReactNode }) {
 
         if (!isMounted) return;
 
-        // Display local IndexedDB data immediately to unlock UI instantly (<100ms)
-        setItems(mediaList);
-        setCollections(colList);
+        // Display local IndexedDB data immediately and update cache
+        if (mediaList.length > 0) {
+          setItems(mediaList);
+          cacheItemsLocally(mediaList);
+        }
+        if (colList.length > 0) {
+          setCollections(colList);
+          cacheCollectionsLocally(colList);
+        }
         setIsLoading(false);
 
         // Check Saved Playback State
@@ -126,9 +189,9 @@ export function MediaProvider({ children }: { children: ReactNode }) {
           setContinuousPlay(savedContinuous === 'true');
         }
 
-        // Asynchronous non-blocking background sync from Google Sheets
+        // Asynchronous non-blocking background sync from Google Sheets (only if valid)
         const webAppUrl = getStoredSheetsWebAppUrl();
-        if (webAppUrl) {
+        if (webAppUrl && isValidGoogleSheetsUrl(webAppUrl)) {
           setIsSheetsSyncing(true);
           fetchItemsFromSheets(webAppUrl)
             .then(async (remoteItems) => {
@@ -144,6 +207,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
 
               const mergedList = Array.from(itemMap.values());
               setItems(mergedList);
+              cacheItemsLocally(mergedList);
               setLastSheetsSyncTime(new Date().toLocaleTimeString('vi-VN'));
 
               // Persist to local storage in background
@@ -224,6 +288,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     const saved = await saveMediaItem(newItem);
     const updatedList = [saved, ...items];
     setItems(updatedList);
+    cacheItemsLocally(updatedList);
     setActiveItemId(saved.id);
     triggerAutoSheetsSync(updatedList);
   };
@@ -233,6 +298,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     const saved = await saveMediaItem(updatedItem);
     const updatedList = items.map((i) => (i.id === saved.id ? saved : i));
     setItems(updatedList);
+    cacheItemsLocally(updatedList);
     triggerAutoSheetsSync(updatedList);
   };
 
@@ -251,6 +317,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     await deleteMediaItem(id);
     const updatedList = items.filter((i) => i.id !== id);
     setItems(updatedList);
+    cacheItemsLocally(updatedList);
     if (activeItemId === id) {
       setActiveItemId(updatedList[0]?.id || null);
     }
@@ -263,6 +330,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     const newFav = await toggleFavorite(id);
     const updatedList = items.map((i) => (i.id === id ? { ...i, favorite: newFav } : i));
     setItems(updatedList);
+    cacheItemsLocally(updatedList);
     triggerAutoSheetsSync(updatedList);
   };
 
@@ -276,6 +344,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
   // Handle Reorder Items
   const handleReorderItems = async (newItems: MediaItem[]) => {
     setItems(newItems);
+    cacheItemsLocally(newItems);
     await reorderMediaItems(newItems.map((i) => i.id));
     triggerAutoSheetsSync(newItems);
   };

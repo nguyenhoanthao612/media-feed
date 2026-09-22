@@ -89,8 +89,43 @@ export function MediaFeed({
   onDeleteItem,
   onItemActivated,
 }: MediaFeedProps) {
-  const [feedSequence, setFeedSequence] = useState<FeedEntry[]>([]);
-  const [activeFeedKey, setActiveFeedKey] = useState<string | null>(null);
+  // Helper to build initial sequence synchronously
+  const buildSequence = useCallback((itemList: MediaItem[], targetId?: string | null) => {
+    if (!itemList || itemList.length === 0) {
+      return { entries: [], startKey: null };
+    }
+
+    let initialEntries: FeedEntry[] = [];
+    let startKey: string | null = null;
+
+    if (targetId) {
+      const targetItem = itemList.find((i) => i.id === targetId);
+      if (targetItem) {
+        const r1 = createRoundEntries(itemList, 1, targetItem);
+        const lastR1Id = r1[r1.length - 1]?.item.id;
+        const r2 = createRoundEntries(itemList, 2, undefined, lastR1Id);
+        initialEntries = [...r1, ...r2];
+        startKey = r1[0].feedKey;
+      }
+    }
+
+    if (initialEntries.length === 0) {
+      const r1 = createRoundEntries(itemList, 1);
+      const lastR1Id = r1[r1.length - 1]?.item.id;
+      const r2 = createRoundEntries(itemList, 2, undefined, lastR1Id);
+      initialEntries = [...r1, ...r2];
+      startKey = r1[0]?.feedKey || null;
+    }
+
+    return { entries: initialEntries, startKey };
+  }, []);
+
+  const [feedSequence, setFeedSequence] = useState<FeedEntry[]>(() => {
+    return buildSequence(items, externalActiveItemId).entries;
+  });
+  const [activeFeedKey, setActiveFeedKey] = useState<string | null>(() => {
+    return buildSequence(items, externalActiveItemId).startKey;
+  });
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -101,64 +136,40 @@ export function MediaFeed({
     return feedSequence.find((e) => e.feedKey === activeFeedKey)?.roundIndex || 1;
   }, [feedSequence, activeFeedKey]);
 
-  // Initialize or rebuild feed sequence when items change or externalActiveItemId is passed
+  // Find active index for lightweight virtualization of nearby media players
+  const activeIndex = useMemo(() => {
+    if (!activeFeedKey) return 0;
+    const idx = feedSequence.findIndex((e) => e.feedKey === activeFeedKey);
+    return idx === -1 ? 0 : idx;
+  }, [feedSequence, activeFeedKey]);
+
+  const [prevItems, setPrevItems] = useState(items);
+  const [prevExternalId, setPrevExternalId] = useState(externalActiveItemId);
+
+  if (items !== prevItems || externalActiveItemId !== prevExternalId) {
+    setPrevItems(items);
+    setPrevExternalId(externalActiveItemId);
+    const { entries, startKey } = buildSequence(items, externalActiveItemId);
+    setFeedSequence(entries);
+    setActiveFeedKey(startKey);
+  }
+
+  // Scroll to targeted active item when externalActiveItemId is passed or changed
   useEffect(() => {
-    let isCancelled = false;
-
-    const timer = setTimeout(() => {
-      if (isCancelled) return;
-
-      if (!items || items.length === 0) {
-        setFeedSequence([]);
-        setActiveFeedKey(null);
-        return;
-      }
-
-      let initialEntries: FeedEntry[] = [];
-      let startKey: string | null = null;
-
-      if (externalActiveItemId) {
-        const targetItem = items.find((i) => i.id === externalActiveItemId);
-        if (targetItem) {
-          const r1 = createRoundEntries(items, 1, targetItem);
-          const lastR1Id = r1[r1.length - 1]?.item.id;
-          const r2 = createRoundEntries(items, 2, undefined, lastR1Id);
-          initialEntries = [...r1, ...r2];
-          startKey = r1[0].feedKey;
-        }
-      }
-
-      if (initialEntries.length === 0) {
-        const r1 = createRoundEntries(items, 1);
-        const lastR1Id = r1[r1.length - 1]?.item.id;
-        const r2 = createRoundEntries(items, 2, undefined, lastR1Id);
-        initialEntries = [...r1, ...r2];
-        startKey = r1[0]?.feedKey || null;
-      }
-
-      setFeedSequence(initialEntries);
-      setActiveFeedKey(startKey);
-
-      if (startKey) {
+    if (!externalActiveItemId) return;
+    const targetEntry = feedSequence.find((e) => e.item.id === externalActiveItemId);
+    if (targetEntry) {
+      const node = itemRefs.current.get(targetEntry.feedKey);
+      if (node) {
         isProgrammaticScrollRef.current = true;
-        const scrollTimer = setTimeout(() => {
-          const node = itemRefs.current.get(startKey!);
-          if (node) {
-            node.scrollIntoView({ behavior: 'auto', block: 'center' });
-          }
-          setTimeout(() => {
-            isProgrammaticScrollRef.current = false;
-          }, 300);
-        }, 50);
-        return () => clearTimeout(scrollTimer);
+        node.scrollIntoView({ behavior: 'auto', block: 'center' });
+        const timer = setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 150);
+        return () => clearTimeout(timer);
       }
-    }, 0);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-    };
-  }, [items, externalActiveItemId]);
+    }
+  }, [externalActiveItemId, feedSequence]);
 
   // Reshuffle feed on user request
   const handleReshuffle = useCallback(() => {
@@ -378,32 +389,38 @@ export function MediaFeed({
         ref={containerRef}
         className="snap-feed-container w-full h-full pt-2 pb-20 no-scrollbar"
       >
-        {feedSequence.map((entry) => (
-          <div
-            key={entry.feedKey}
-            data-key={entry.feedKey}
-            ref={(el) => {
-              if (el) itemRefs.current.set(entry.feedKey, el);
-              else itemRefs.current.delete(entry.feedKey);
-            }}
-            className="w-full flex items-center justify-center min-h-[calc(100vh-4rem)] my-1"
-          >
-            <MediaCard
-              item={entry.item}
-              isActive={activeFeedKey === entry.feedKey}
-              continuousPlay={continuousPlay}
-              isMuted={isMuted}
-              onToggleMute={onToggleMute}
-              onEnded={() => handleItemEnded(entry.feedKey)}
-              onFavoriteToggle={onFavoriteToggle}
-              onSelectTag={onSelectTag}
-              onOpenQueue={onOpenQueue}
-              onEdit={onEditItem}
-              onDelete={onDeleteItem}
-              onToggleContinuousPlay={onToggleContinuousPlay}
-            />
-          </div>
-        ))}
+        {feedSequence.map((entry, idx) => {
+          const isActive = activeFeedKey ? activeFeedKey === entry.feedKey : idx === 0;
+          const isNearby = activeIndex === -1 ? idx <= 1 : Math.abs(idx - activeIndex) <= 1;
+
+          return (
+            <div
+              key={entry.feedKey}
+              data-key={entry.feedKey}
+              ref={(el) => {
+                if (el) itemRefs.current.set(entry.feedKey, el);
+                else itemRefs.current.delete(entry.feedKey);
+              }}
+              className="w-full flex items-center justify-center min-h-[calc(100vh-4rem)] my-1"
+            >
+              <MediaCard
+                item={entry.item}
+                isActive={isActive}
+                isNearby={isNearby}
+                continuousPlay={continuousPlay}
+                isMuted={isMuted}
+                onToggleMute={onToggleMute}
+                onEnded={() => handleItemEnded(entry.feedKey)}
+                onFavoriteToggle={onFavoriteToggle}
+                onSelectTag={onSelectTag}
+                onOpenQueue={onOpenQueue}
+                onEdit={onEditItem}
+                onDelete={onDeleteItem}
+                onToggleContinuousPlay={onToggleContinuousPlay}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
 interface MediaCardProps {
   item: MediaItem;
   isActive: boolean;
+  isNearby?: boolean;
   continuousPlay: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
@@ -57,6 +58,7 @@ function getVideoSrc(item: MediaItem): string | undefined {
 export function MediaCard({
   item,
   isActive,
+  isNearby = true,
   continuousPlay,
   isMuted,
   onToggleMute,
@@ -89,11 +91,11 @@ export function MediaCard({
   const videoSrc = getVideoSrc(item);
   const audioSrc = getAudioSrc(item);
 
-  // Stable YouTube embed URL to avoid recreating iframe DOM and reloading on active switch
+  // Stable YouTube embed URL only created when active or nearby to prevent resource thrashing
   const youtubeEmbedUrl = useMemo(() => {
-    if (!youtubeId) return '';
+    if (!youtubeId || (!isActive && !isNearby)) return '';
     return getYouTubeEmbedUrl(youtubeId, true, true);
-  }, [youtubeId]);
+  }, [youtubeId, isActive, isNearby]);
 
   // Auto hide controls overlay after 3.5s of inactivity
   const handleMouseMove = () => {
@@ -397,7 +399,9 @@ export function MediaCard({
             src={videoSrc}
             poster={item.thumbnailUrl}
             playsInline
-            preload="auto"
+            preload={isActive ? 'auto' : (isNearby ? 'metadata' : 'none')}
+            autoPlay={isActive}
+            muted={isMuted}
             loop={!continuousPlay}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -510,40 +514,57 @@ export function MediaCard({
         {(item.type === 'external_video' || isYouTube) && (
           <div className="relative w-full h-full flex flex-col items-center justify-center bg-black">
             {youtubeId ? (
-              <iframe
-                ref={iframeRef}
-                src={youtubeEmbedUrl}
-                title={item.title}
-                onLoad={() => {
-                  if (iframeRef.current?.contentWindow) {
-                    try {
-                      iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
-                      iframeRef.current.contentWindow.postMessage(
-                        JSON.stringify({
-                          event: 'command',
-                          func: isMuted ? 'mute' : 'unMute',
-                          args: [],
-                        }),
-                        '*'
-                      );
-                      if (isActive) {
+              (isActive || isNearby) ? (
+                <iframe
+                  ref={iframeRef}
+                  src={youtubeEmbedUrl}
+                  title={item.title}
+                  loading={isActive ? 'eager' : 'lazy'}
+                  onLoad={() => {
+                    if (iframeRef.current?.contentWindow) {
+                      try {
+                        iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
                         iframeRef.current.contentWindow.postMessage(
-                          JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+                          JSON.stringify({
+                            event: 'command',
+                            func: isMuted ? 'mute' : 'unMute',
+                            args: [],
+                          }),
                           '*'
                         );
-                      } else {
-                        iframeRef.current.contentWindow.postMessage(
-                          JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }),
-                          '*'
-                        );
-                      }
-                    } catch {}
-                  }
-                }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                className="w-full h-full border-0 pointer-events-auto"
-              />
+                        if (isActive) {
+                          iframeRef.current.contentWindow.postMessage(
+                            JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+                            '*'
+                          );
+                        } else {
+                          iframeRef.current.contentWindow.postMessage(
+                            JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }),
+                            '*'
+                          );
+                        }
+                      } catch {}
+                    }
+                  }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="w-full h-full border-0 pointer-events-auto"
+                />
+              ) : (
+                <div className="relative w-full h-full flex items-center justify-center bg-zinc-950">
+                  <img
+                    src={item.thumbnailUrl || `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`}
+                    alt={item.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover opacity-60"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-full bg-red-600/80 backdrop-blur-md flex items-center justify-center text-white shadow-xl">
+                      <Play className="w-6 h-6 fill-white translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="p-6 text-center space-y-3 bg-zinc-900/90 rounded-xl border border-zinc-800 m-4">
                 <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />

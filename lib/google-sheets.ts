@@ -144,10 +144,18 @@ export function getStoredSheetsWebAppUrl(): string {
   return DEFAULT_GOOGLE_APPS_SCRIPT_URL;
 }
 
+export function isValidGoogleSheetsUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('https://script.google.com/macros/s/')) return false;
+  if (trimmed.includes('EXAMPLE_APPS_SCRIPT_URL') || trimmed.includes('AKfycbx_EXAMPLE')) return false;
+  return true;
+}
+
 export function isUsingCustomSheetsUrl(): boolean {
   if (typeof window === 'undefined') return false;
   const customUrl = localStorage.getItem(LOCAL_STORAGE_WEBAPP_KEY);
-  return Boolean(customUrl && customUrl.trim() && customUrl.trim() !== DEFAULT_GOOGLE_APPS_SCRIPT_URL);
+  return Boolean(customUrl && customUrl.trim() && customUrl.trim() !== DEFAULT_GOOGLE_APPS_SCRIPT_URL && isValidGoogleSheetsUrl(customUrl));
 }
 
 export function setStoredSheetsWebAppUrl(url: string) {
@@ -177,9 +185,9 @@ export function setStoredAutoSync(enabled: boolean) {
  * Fetch all media items from Google Sheets Web App
  */
 export async function fetchItemsFromSheets(webAppUrl: string): Promise<MediaItem[]> {
-  if (!webAppUrl || !webAppUrl.startsWith('http')) return [];
+  if (!isValidGoogleSheetsUrl(webAppUrl)) return [];
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
 
   try {
     const res = await fetch(webAppUrl, { 
